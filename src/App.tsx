@@ -76,12 +76,18 @@ export default function VehicleInspectionForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [advisor, setAdvisor] = useState("");
+  const [technician, setTechnician] = useState("");
+  const [advisorError, setAdvisorError] = useState(false);
+  const [technicianError, setTechnicianError] = useState(false);
 
   // Refs for scrolling to errors
   const responsibleRef = useRef<HTMLDivElement | null>(null);
   const plateRef = useRef<HTMLDivElement | null>(null);
   const dateRef = useRef<HTMLDivElement | null>(null);
   const questionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const advisorRef = useRef<HTMLDivElement | null>(null);
+  const technicianRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-complete form when Quality Control OK is checked
   useEffect(() => {
@@ -198,6 +204,24 @@ export default function VehicleInspectionForm() {
       setDateError(false);
     }
     
+    // Validate advisor
+    if (!advisor.trim()) {
+      setAdvisorError(true);
+      if (!firstErrorRef) firstErrorRef = advisorRef;
+      isValid = false;
+    } else {
+      setAdvisorError(false);
+    }
+
+    // Validate technician
+    if (!technician.trim()) {
+      setTechnicianError(true);
+      if (!firstErrorRef) firstErrorRef = technicianRef;
+      isValid = false;
+    } else {
+      setTechnicianError(false);
+    }
+
     // Only validate questions if Quality Control OK is not checked
     if (!qualityControlOK) {
       questions.forEach((question, index) => {
@@ -255,6 +279,8 @@ export default function VehicleInspectionForm() {
         "Responsable": responsible,
         "Placa Vehiculo": plateNumber,
         "Fecha de Control": controlDate,
+        "Asesor": advisor,
+        "Tecnico": technician,
       };
       
       // Add questions and answers
@@ -324,6 +350,10 @@ export default function VehicleInspectionForm() {
     setIsSubmitted(false);
     setSubmitError("");
     setSubmitSuccess(false);
+    setAdvisor("");
+    setTechnician("");
+    setAdvisorError(false);
+    setTechnicianError(false);
   };
 
   const getButtonClass = (selectedValue: string, optionValue: string, baseColor: string) => {
@@ -393,60 +423,91 @@ export default function VehicleInspectionForm() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Responsible and Plate Fields */}
-              <div ref={responsibleRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 p-6 bg-blue-50 rounded-lg">
-                <div className="space-y-2">
-                  <Label htmlFor="responsible" className="text-sm font-medium text-gray-700">
-                    Responsable <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="responsible"
-                    value={responsible}
-                    onChange={(e) => {
-                      setResponsible(e.target.value);
-                      if (responsibleError) setResponsibleError(false);
-                    }}
-                    placeholder="Ingrese el nombre del responsable"
-                    className={responsibleError ? "border-red-500" : ""}
-                  />
-                  {responsibleError && (
-                    <p className="text-red-500 text-sm">El nombre del responsable es requerido</p>
-                  )}
-                </div>
+              <div className="mb-8 p-6 bg-blue-50 rounded-lg space-y-6">
                 
-                <div ref={plateRef} className="space-y-2">
-                  <Label htmlFor="plate" className="text-sm font-medium text-gray-700">
-                    Placa Vehiculo <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="plate"
-                    value={plateNumber}
-                    onChange={handlePlateChange}
-                    placeholder="Ingrese la placa del vehículo"
-                    className={plateError ? "border-red-500" : ""}
-                  />
-                  {plateError && (
-                    <p className="text-red-500 text-sm">La placa del vehículo es requerida</p>
-                  )}
+                {/* Primera fila */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Responsable */}
+                  <div ref={responsibleRef} className="space-y-2">
+                    <Label htmlFor="responsible">Responsable <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="responsible"
+                      value={responsible}
+                      onChange={(e) => {
+                        setResponsible(e.target.value);
+                        if (responsibleError) setResponsibleError(false);
+                      }}
+                      placeholder="Ingrese el nombre del responsable"
+                      className={responsibleError ? "border-red-500" : ""}
+                    />
+                    {responsibleError && <p className="text-red-500 text-sm">El nombre del responsable es requerido</p>}
+                  </div>
+
+                  {/* Placa */}
+                  <div ref={plateRef} className="space-y-2">
+                    <Label htmlFor="plate">Placa Vehiculo <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="plate"
+                      value={plateNumber}
+                      onChange={handlePlateChange}
+                      placeholder="Ingrese la placa del vehículo"
+                      className={plateError ? "border-red-500" : ""}
+                    />
+                    {plateError && <p className="text-red-500 text-sm">La placa del vehículo es requerida</p>}
+                  </div>
+
+                  {/* Fecha */}
+                  <div ref={dateRef} className="space-y-2">
+                    <Label htmlFor="date">Fecha de Control <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={controlDate}
+                      onChange={(e) => {
+                        setControlDate(e.target.value);
+                        if (dateError) setDateError(false);
+                      }}
+                      className={dateError ? "border-red-500" : ""}
+                    />
+                    {dateError && <p className="text-red-500 text-sm">La fecha de control es requerida</p>}
+                  </div>
                 </div>
-                
-                <div ref={dateRef} className="space-y-2">
-                  <Label htmlFor="date" className="text-sm font-medium text-gray-700">
-                    Fecha de Control <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={controlDate}
-                    onChange={(e) => {
-                      setControlDate(e.target.value);
-                      if (dateError) setDateError(false);
-                    }}
-                    className={dateError ? "border-red-500" : ""}
-                  />
-                  {dateError && (
-                    <p className="text-red-500 text-sm">La fecha de control es requerida</p>
-                  )}
+
+                {/* Segunda fila */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Asesor */}
+                  <div ref={advisorRef} className="space-y-2">
+                    <Label htmlFor="advisor">Asesor <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="advisor"
+                      value={advisor}
+                      onChange={(e) => {
+                        setAdvisor(e.target.value);
+                        if (advisorError) setAdvisorError(false);
+                      }}
+                      placeholder="Ingrese el nombre del asesor"
+                      className={advisorError ? "border-red-500" : ""}
+                    />
+                    {advisorError && <p className="text-red-500 text-sm">El asesor es requerido</p>}
+                  </div>
+
+                  {/* Técnico */}
+                  <div ref={technicianRef} className="space-y-2">
+                    <Label htmlFor="technician">Tecnico <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="technician"
+                      value={technician}
+                      onChange={(e) => {
+                        setTechnician(e.target.value);
+                        if (technicianError) setTechnicianError(false);
+                      }}
+                      placeholder="Ingrese el nombre del tecnico"
+                      className={technicianError ? "border-red-500" : ""}
+                    />
+                    {technicianError && <p className="text-red-500 text-sm">El tecnico es requerido</p>}
+                  </div>
                 </div>
+
               </div>
               
               {/* Quality Control OK Checkbox */}
