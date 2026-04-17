@@ -60,6 +60,71 @@ const liquidOptions = [
   { value: "n-a", label: "N/A", icon: MinusCircle, color: "bg-gray-500" },
 ];
 
+type FloatingInputProps = {
+  id: string;
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: boolean;
+  errorMessage?: string;
+  inputRef?: React.RefObject<HTMLDivElement | null>;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+const FloatingInput = ({
+  id,
+  label,
+  type = "text",
+  value,
+  onChange,
+  error,
+  errorMessage,
+  inputRef,
+  onFocus,
+  onBlur
+}: FloatingInputProps) => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <div ref={inputRef} className="relative">
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        onFocus={() => {
+          setIsFocused(true);
+          onFocus && onFocus();
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          onBlur && onBlur();
+        }}
+        onChange={onChange}
+        className={`pt-6 pb-2 ${error ? "border-red-500" : ""}`}
+      />
+
+      <Label
+        htmlFor={id}
+        className={`absolute left-3 transition-all duration-200 bg-blue-50 px-1
+          ${(value || isFocused)
+            ? "-top-2 text-xs text-blue-600"
+            : "top-3 text-base text-gray-400"}
+        `}
+      >
+        {label} <span className="text-red-500">*</span>
+      </Label>
+
+      {error && (
+        <p className="text-red-500 text-sm mt-1">
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+};
+
 export default function VehicleInspectionForm() {
   const [responsible, setResponsible] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
@@ -88,6 +153,7 @@ export default function VehicleInspectionForm() {
   const questionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const advisorRef = useRef<HTMLDivElement | null>(null);
   const technicianRef = useRef<HTMLDivElement | null>(null);
+  const isManualToggle = useRef(false);
 
   // Auto-complete form when Quality Control OK is checked
   useEffect(() => {
@@ -108,11 +174,64 @@ export default function VehicleInspectionForm() {
       setObservations({});
       setObservationErrors({});
       setErrors({});
+    } else {
+      if (isManualToggle.current) {
+        setFormData({});
+        setObservations({});
+        setObservationErrors({});
+        setErrors({});
+      }
     }
+    isManualToggle.current = false;
   }, [qualityControlOK]);
+  
+  useEffect(() => {
+    // Si no hay respuestas, no hacer nada
+    if (Object.keys(formData).length === 0) return;
+
+    const allCorrect = questions.every((question) => {
+      const answer = formData[question];
+
+      const isLiquidQuestion =
+        question.includes("liquidos") ||
+        question.includes("Calidad de") ||
+        question.includes("Estado y daños") ||
+        question.includes("aire acondicionado") ||
+        question.includes("tablero de instrumentos");
+
+      if (isLiquidQuestion) {
+        return answer === "buen-estado";
+      }
+
+      return answer === "cumple";
+    });
+
+    if (allCorrect && !qualityControlOK) {
+      // 🔥 marcar automáticamente sin limpiar nada
+      isManualToggle.current = false;
+      setQualityControlOK(true);
+    }
+
+  }, [formData]);
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (qualityControlOK) {
+      isManualToggle.current = false;
+      setQualityControlOK(false);
+    }
+    
+    setFormData((prev) => {
+      const currentValue = prev[name];
+
+      // 🔥 Si ya está seleccionado, lo deselecciona
+      if (currentValue === value) {
+        const newData = { ...prev };
+        delete newData[name];
+        return newData;
+      }
+
+      return { ...prev, [name]: value };
+    });
     
     // Clear observation if not an observation-triggering value
     const shouldShowObservation = value === "no-cumple" || value === "atencion-pronto" || value === "cambio-inmediato";
@@ -391,7 +510,10 @@ export default function VehicleInspectionForm() {
             <p className="text-gray-600 mb-6">
               El control de calidad del vehículo ha sido registrado exitosamente.
             </p>
-            <Button onClick={resetForm} className="w-full max-w-xs">
+            <Button 
+              onClick={resetForm} 
+              className="w-full max-w-xs px-4 py-3 text-sm md:text-base whitespace-normal text-center break-words flex items-center justify-center"
+            >
               Realizar Nuevo Control de Calidad
             </Button>
           </CardContent>
@@ -427,85 +549,75 @@ export default function VehicleInspectionForm() {
                 
                 {/* Primera fila */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Responsable */}
-                  <div ref={responsibleRef} className="space-y-2">
-                    <Label htmlFor="responsible">Responsable <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="responsible"
-                      value={responsible}
-                      onChange={(e) => {
-                        setResponsible(e.target.value);
-                        if (responsibleError) setResponsibleError(false);
-                      }}
-                      placeholder="Ingrese el nombre del responsable"
-                      className={responsibleError ? "border-red-500" : ""}
-                    />
-                    {responsibleError && <p className="text-red-500 text-sm">El nombre del responsable es requerido</p>}
-                  </div>
 
-                  {/* Placa */}
-                  <div ref={plateRef} className="space-y-2">
-                    <Label htmlFor="plate">Placa Vehiculo <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="plate"
-                      value={plateNumber}
-                      onChange={handlePlateChange}
-                      placeholder="Ingrese la placa del vehículo"
-                      className={plateError ? "border-red-500" : ""}
-                    />
-                    {plateError && <p className="text-red-500 text-sm">La placa del vehículo es requerida</p>}
-                  </div>
+                  <FloatingInput
+                    id="responsible"
+                    label="Responsable"
+                    value={responsible}
+                    onChange={(e) => {
+                      setResponsible(e.target.value);
+                      if (responsibleError) setResponsibleError(false);
+                    }}
+                    error={responsibleError}
+                    errorMessage="El nombre del responsable es requerido"
+                    inputRef={responsibleRef}
+                  />
 
-                  {/* Fecha */}
-                  <div ref={dateRef} className="space-y-2">
-                    <Label htmlFor="date">Fecha de Control <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={controlDate}
-                      onChange={(e) => {
-                        setControlDate(e.target.value);
-                        if (dateError) setDateError(false);
-                      }}
-                      className={dateError ? "border-red-500" : ""}
-                    />
-                    {dateError && <p className="text-red-500 text-sm">La fecha de control es requerida</p>}
-                  </div>
+                  <FloatingInput
+                    id="plate"
+                    label="Placa Vehiculo"
+                    value={plateNumber}
+                    onChange={handlePlateChange}
+                    error={plateError}
+                    errorMessage="La placa del vehículo es requerida"
+                    inputRef={plateRef}
+                  />
+
+                  <FloatingInput
+                    id="date"
+                    type="date"
+                    label="Fecha de Control"
+                    value={controlDate}
+                    onChange={(e) => {
+                      setControlDate(e.target.value);
+                      if (dateError) setDateError(false);
+                    }}
+                    error={dateError}
+                    errorMessage="La fecha de control es requerida"
+                    inputRef={dateRef}
+                  />
+
                 </div>
 
                 {/* Segunda fila */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Asesor */}
-                  <div ref={advisorRef} className="space-y-2">
-                    <Label htmlFor="advisor">Asesor <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="advisor"
-                      value={advisor}
-                      onChange={(e) => {
-                        setAdvisor(e.target.value);
-                        if (advisorError) setAdvisorError(false);
-                      }}
-                      placeholder="Ingrese el nombre del asesor"
-                      className={advisorError ? "border-red-500" : ""}
-                    />
-                    {advisorError && <p className="text-red-500 text-sm">El asesor es requerido</p>}
-                  </div>
 
-                  {/* Técnico */}
-                  <div ref={technicianRef} className="space-y-2">
-                    <Label htmlFor="technician">Tecnico <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="technician"
-                      value={technician}
-                      onChange={(e) => {
-                        setTechnician(e.target.value);
-                        if (technicianError) setTechnicianError(false);
-                      }}
-                      placeholder="Ingrese el nombre del tecnico"
-                      className={technicianError ? "border-red-500" : ""}
-                    />
-                    {technicianError && <p className="text-red-500 text-sm">El tecnico es requerido</p>}
-                  </div>
+                  <FloatingInput
+                    id="advisor"
+                    label="Asesor"
+                    value={advisor}
+                    onChange={(e) => {
+                      setAdvisor(e.target.value);
+                      if (advisorError) setAdvisorError(false);
+                    }}
+                    error={advisorError}
+                    errorMessage="El asesor es requerido"
+                    inputRef={advisorRef}
+                  />
+
+                  <FloatingInput
+                    id="technician"
+                    label="Tecnico"
+                    value={technician}
+                    onChange={(e) => {
+                      setTechnician(e.target.value);
+                      if (technicianError) setTechnicianError(false);
+                    }}
+                    error={technicianError}
+                    errorMessage="El tecnico es requerido"
+                    inputRef={technicianRef}
+                  />
+
                 </div>
 
               </div>
@@ -515,7 +627,10 @@ export default function VehicleInspectionForm() {
                 <Checkbox
                   id="qualityControlOK"
                   checked={qualityControlOK}
-                  onCheckedChange={(checked) => setQualityControlOK(checked as boolean)}
+                  onCheckedChange={(checked) => {
+                    isManualToggle.current = true;
+                    setQualityControlOK(checked as boolean);
+                  }}
                 />
                 <Label 
                   htmlFor="qualityControlOK" 
@@ -527,6 +642,11 @@ export default function VehicleInspectionForm() {
               
               <div className="grid grid-cols-1 gap-6">
                 {questions.map((question, index) => {
+                  const showObservation =
+                                          formData[question] === "no-cumple" || 
+                                          formData[question] === "atencion-pronto" || 
+                                          formData[question] === "cambio-inmediato";
+
                   const isLiquidQuestion = question.includes("liquidos") || 
                                           question.includes("Calidad de") || 
                                           question.includes("Estado y daños") || 
@@ -555,7 +675,7 @@ export default function VehicleInspectionForm() {
                               key={option.value}
                               type="button"
                               onClick={() => handleSelectChange(question, option.value)}
-                              disabled={qualityControlOK}
+                              // disabled={qualityControlOK}
                               className={getButtonClass(
                                 formData[question] || "", 
                                 option.value, 
@@ -574,10 +694,7 @@ export default function VehicleInspectionForm() {
                       )}
                       
                       {/* Observations field - shown for specific answers */}
-                      {((formData[question] === "no-cumple" || 
-                         formData[question] === "atencion-pronto" || 
-                         formData[question] === "cambio-inmediato") && 
-                        !qualityControlOK) && (
+                      {showObservation && (
                         <div className="mt-3">
                           <Label htmlFor={`observation-${index}`} className="text-sm font-medium text-gray-700">
                             Observaciones <span className="text-red-500">*</span>
@@ -587,10 +704,12 @@ export default function VehicleInspectionForm() {
                             value={observations[question] || ""}
                             onChange={(e) => handleObservationChange(question, e.target.value)}
                             placeholder="Por favor describa la deficiencia encontrada"
-                            className={`mt-1 ${observationErrors[question] ? "border-red-500" : ""}`}
+                            className={`mt-1 bg-white ${observationErrors[question] ? "border-red-500" : ""}`}
                           />
                           {observationErrors[question] && (
-                            <p className="text-red-500 text-sm mt-1">Las observaciones son requeridas para esta respuesta</p>
+                            <p className="text-red-500 text-sm mt-1">
+                              Las observaciones son requeridas para esta respuesta
+                            </p>
                           )}
                         </div>
                       )}
@@ -614,7 +733,7 @@ export default function VehicleInspectionForm() {
               <div className="pt-4">
                 <Button 
                   type="submit" 
-                  className="w-full py-6 text-lg"
+                  className="w-full py-4 px-4 text-sm md:text-lg whitespace-normal text-center break-words flex items-center justify-center"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
